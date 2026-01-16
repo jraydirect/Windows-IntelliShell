@@ -44,7 +44,9 @@ class SystemProvider(BaseProvider):
                 pattern="kill notepad",
                 intent_name="kill_by_name",
                 weight=1.0,
-                aliases=["stop notepad", "close notepad"]
+                aliases=["stop notepad", "close notepad", "kill chrome", "kill calculator", 
+                        "kill firefox", "kill edge", "kill explorer", "kill discord", 
+                        "kill brave", "kill cursor", "kill ollama"]
             ),
             IntentTrigger(
                 pattern="most memory",
@@ -132,8 +134,10 @@ Or use: runas /user:Administrator intent
         context: Optional[Dict[str, Any]] = None
     ) -> ExecutionResult:
         """Kill a process by PID."""
-        # Extract PID from entities
+        # Extract PID from entities or original input
         pid = None
+        
+        # Try entities first
         if context and "entities" in context:
             for entity in context["entities"]:
                 if entity.type == "number":
@@ -142,6 +146,17 @@ Or use: runas /user:Administrator intent
                         break
                     except ValueError:
                         pass
+        
+        # If no entity, try parsing from original input
+        if pid is None and context and "original_input" in context:
+            import re
+            # Look for numbers in the input
+            numbers = re.findall(r'\b\d+\b', context["original_input"])
+            if numbers:
+                try:
+                    pid = int(numbers[-1])  # Take the last number
+                except ValueError:
+                    pass
         
         if pid is None:
             return ExecutionResult(
@@ -191,12 +206,20 @@ Or use: runas /user:Administrator intent
         process_name = None
         if context and "original_input" in context:
             input_lower = context["original_input"].lower()
-            # Extract common process names
-            common_apps = ['notepad', 'calculator', 'chrome', 'firefox', 'edge']
-            for app in common_apps:
-                if app in input_lower:
-                    process_name = f"{app}.exe"
-                    break
+            
+            # Handle "kill explorer.exe" format
+            import re
+            exe_match = re.search(r'kill\s+(\w+)\.exe', input_lower)
+            if exe_match:
+                process_name = f"{exe_match.group(1)}.exe"
+            else:
+                # Extract common process names
+                common_apps = ['notepad', 'calculator', 'chrome', 'firefox', 'edge', 
+                              'explorer', 'discord', 'brave', 'cursor', 'ollama']
+                for app in common_apps:
+                    if app in input_lower:
+                        process_name = f"{app}.exe"
+                        break
         
         if not process_name:
             return ExecutionResult(
