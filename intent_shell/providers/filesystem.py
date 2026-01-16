@@ -307,26 +307,20 @@ class FileSystemProvider(BaseProvider):
             recent_files = files[:10]
             
             if not recent_files:
+                from intent_shell.utils.display import format_message
                 return ExecutionResult(
                     success=True,
-                    message=f"No files found in {target_dir}"
+                    message=format_message(f"No files found in {target_dir}", success=True)
                 )
             
-            # Format output
-            from datetime import datetime
-            message_lines = [f"Recent files in {target_dir.name}:\n"]
-            
-            for i, file_info in enumerate(recent_files, 1):
-                mod_time = datetime.fromtimestamp(file_info["modified"])
-                time_str = mod_time.strftime("%Y-%m-%d %H:%M")
-                size_str = f"{file_info['size_mb']:.2f} MB" if file_info['size_mb'] >= 0.01 else f"{file_info['size_mb']*1024:.0f} KB"
-                
-                message_lines.append(f"{i:2d}. {file_info['name']}")
-                message_lines.append(f"     {time_str} | {size_str}")
+            # Format as rich table
+            from intent_shell.utils.display import format_file_table
+            title = f"Recent files in {target_dir.name}"
+            formatted_table = format_file_table(recent_files, title)
             
             return ExecutionResult(
                 success=True,
-                message="\n".join(message_lines),
+                message=formatted_table,
                 data={"files": recent_files, "directory": str(target_dir)}
             )
             

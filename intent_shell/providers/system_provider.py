@@ -308,14 +308,13 @@ Or use: runas /user:Administrator intent
             # Sort by memory
             processes.sort(key=lambda p: p['memory_mb'], reverse=True)
             
-            # Show top 10
-            message_lines = ["Top 10 Processes by Memory:"]
-            for i, p in enumerate(processes[:10], 1):
-                message_lines.append(f"  {i}. {p['name']} - {p['memory_mb']:.1f} MB (PID: {p['pid']})")
+            # Format as rich table
+            from intent_shell.utils.display import format_process_table
+            formatted_table = format_process_table(processes[:10], "Top 10 Processes by Memory")
             
             return ExecutionResult(
                 success=True,
-                message="\n".join(message_lines),
+                message=formatted_table,
                 data={"processes": processes[:10], "total": len(processes)}
             )
         except ImportError:

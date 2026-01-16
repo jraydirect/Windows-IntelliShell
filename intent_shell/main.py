@@ -17,6 +17,7 @@ from intent_shell.memory import SemanticMemory
 from intent_shell.ai_bridge import AIBridge
 from intent_shell.validation import SelfCorrection
 from intent_shell.utils.terminal import enable_royal_blue_terminal, reset_terminal_color, TerminalColors
+from intent_shell.utils.display import format_message
 import logging
 
 logger = logging.getLogger(__name__)
@@ -113,12 +114,19 @@ class IntentShell:
     
     def print_banner(self) -> None:
         """Display welcome banner."""
-        banner = """
-╔═══════════════════════════════════════════════════════════╗
-║   Intent Shell v0.1 (Self-Healing & Production Safety)   ║
-║  Try-Repair-Retry Loop | HITL Safety | Circuit Breaker   ║
-║  Type 'help' for commands, 'check system health' to test ║
-╚═══════════════════════════════════════════════════════════╝
+        banner = r"""
+$$$$$$\            $$\                          $$\            $$$$$$\  $$\                 $$\ $$\ 
+\_$$  _|           $$ |                         $$ |          $$  __$$\ $$ |                $$ |$$ |
+  $$ |  $$$$$$$\ $$$$$$\    $$$$$$\  $$$$$$$\ $$$$$$\         $$ /  \__|$$$$$$$\   $$$$$$\  $$ |$$ |
+  $$ |  $$  __$$\\_$$  _|  $$  __$$\ $$  __$$\\_$$  _|        \$$$$$$\  $$  __$$\ $$  __$$\ $$ |$$ |
+  $$ |  $$ |  $$ | $$ |    $$$$$$$$ |$$ |  $$ | $$ |           \____$$\ $$ |  $$ |$$$$$$$$ |$$ |$$ |
+  $$ |  $$ |  $$ | $$ |$$\ $$   ____|$$ |  $$ | $$ |$$\       $$\   $$ |$$ |  $$ |$$   ____|$$ |$$ |
+$$$$$$\ $$ |  $$ | \$$$$  |\$$$$$$$\ $$ |  $$ | \$$$$  |      \$$$$$$  |$$ |  $$ |\$$$$$$$\ $$ |$$ |
+\______|\__|  \__|  \____/  \_______|\__|  \__|  \____/        \______/ \__|  \__| \_______|\__|\__|
+
+v0.1 - Self-Healing & Production Safety
+Try-Repair-Retry Loop | HITL Safety | Circuit Breaker
+Type 'help' for commands, 'check system health' to test
 """
         print(banner)
         
@@ -175,7 +183,8 @@ class IntentShell:
             "show available commands"
         ]
         if any(pattern in user_input_lower for pattern in help_patterns):
-            print("ℹ To see available commands, type 'help' or use the 'manifest' command.")
+            info_msg = format_message("ℹ To see available commands, type 'help' or use the 'manifest' command.", success=False, is_warning=True)
+            print(info_msg)
             self._show_help()
             return True
         
@@ -201,7 +210,8 @@ class IntentShell:
         is_nl_query = hasattr(self.parser, '_is_natural_language_query') and \
                      self.parser._is_natural_language_query(cleaned_input)
         if is_nl_query and self.ai_bridge and self.ai_bridge.is_available():
-            print(f"[Thinking: Mapping '{cleaned_input[:50]}...' to intent...]")
+            thinking_msg = format_message(f"[Thinking: Mapping '{cleaned_input[:50]}...' to intent...]", success=False, is_warning=False)
+            print(thinking_msg)
         
         # Parse intent
         parse_result = self.parser.parse(
@@ -211,8 +221,10 @@ class IntentShell:
         
         # Handle no match
         if parse_result is None:
-            print(f"Unknown command: '{user_input}'")
-            print("Type 'help' for available commands.")
+            error_msg = format_message(f"Unknown command: '{user_input}'", success=False, is_error=True)
+            warning_msg = format_message("Type 'help' for available commands.", success=False, is_warning=True)
+            print(error_msg)
+            print(warning_msg)
             
             if self.debug:
                 print("\n[DEBUG] Top scoring intents:")
@@ -243,7 +255,8 @@ class IntentShell:
         
         if needs_correction and correction_msgs:
             for msg in correction_msgs:
-                print(f"ℹ {msg}")
+                info_msg = format_message(f"ℹ {msg}", success=False, is_warning=True)
+                print(info_msg)
         
         # Show debug info
         if self.debug:
@@ -277,13 +290,20 @@ class IntentShell:
             else:
                 result = await self.planner.execute_intent(intent_match, execution_context)
             
-            # Display result
-            print(result.message)
+            # Display result with color coding
+            if result.success:
+                # Success messages - already colored in providers, but ensure green for simple success
+                print(result.message)
+            else:
+                # Error messages - color red
+                colored_message = format_message(result.message, success=False, is_error=True)
+                print(colored_message)
             
             # Pipe to clipboard if requested
             if pipe_to_clipboard and result.success:
                 if copy_to_clipboard(result.message):
-                    print("✓ Copied to clipboard")
+                    success_msg = format_message("✓ Copied to clipboard", success=True)
+                    print(success_msg)
             
             # Store in semantic memory
             if self.semantic_memory and result.success:
@@ -335,7 +355,8 @@ class IntentShell:
                     self.ai_bridge.context_manager.update_directory(str(result.data["path"]))
             
         except Exception as e:
-            print(f"Error executing command: {e}")
+            error_msg = format_message(f"Error executing command: {e}", success=False, is_error=True)
+            print(error_msg)
             logger.exception("Command execution failed")
             
             self.transaction_logger.log_transaction(
@@ -468,10 +489,12 @@ class IntentShell:
                     print("\nUse 'exit' to quit.")
                     continue
                 except EOFError:
-                    print("\nExiting Intent Shell...")
+                    exit_msg = format_message("\nExiting Intent Shell...", success=True)
+                    print(exit_msg)
                     break
                 except Exception as e:
-                    print(f"Error: {e}")
+                    error_msg = format_message(f"Error: {e}", success=False, is_error=True)
+                    print(error_msg)
                     logger.exception("REPL error")
                     continue
             

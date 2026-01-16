@@ -9,6 +9,7 @@ from intent_shell.parser import SemanticParser
 from intent_shell.planner import ExecutionPlanner
 from intent_shell.utils.logging import setup_logging
 from intent_shell.utils.clipboard import should_pipe_to_clipboard, copy_to_clipboard
+from intent_shell.utils.display import format_message
 from intent_shell import __version__
 import logging
 
@@ -65,10 +66,12 @@ async def execute_single_command(
     parse_result = parser.parse(cleaned_input, use_llm_fallback=(ai_bridge is not None))
     
     if parse_result is None:
-        print(f"Unknown command: '{command}'")
+        error_msg = format_message(f"Unknown command: '{command}'", success=False, is_error=True)
+        print(error_msg)
         
         if debug:
-            print("\n[DEBUG] Top scoring intents:")
+            debug_msg = format_message("\n[DEBUG] Top scoring intents:", success=False, is_warning=True)
+            print(debug_msg)
             scores = parser.get_debug_scores(cleaned_input)
             for intent, pattern, score in scores:
                 print(f"  - {intent}: {pattern} ({score:.2f})")
@@ -78,7 +81,8 @@ async def execute_single_command(
     # Handle ambiguous
     from intent_shell.parser import AmbiguousMatch, IntentMatch
     if isinstance(parse_result, AmbiguousMatch):
-        print("Ambiguous command. Please be more specific.")
+        warning_msg = format_message("Ambiguous command. Please be more specific.", success=False, is_warning=True)
+        print(warning_msg)
         return 1
     
     intent_match: IntentMatch = parse_result
@@ -99,16 +103,24 @@ async def execute_single_command(
         }
         
         result = await planner.execute_intent(intent_match, execution_context)
-        print(result.message)
+        
+        # Display with color coding
+        if result.success:
+            print(result.message)
+        else:
+            error_msg = format_message(result.message, success=False, is_error=True)
+            print(error_msg)
         
         # Pipe to clipboard if requested
         if pipe_to_clipboard and result.success:
             if copy_to_clipboard(result.message):
-                print("✓ Copied to clipboard")
+                success_msg = format_message("✓ Copied to clipboard", success=True)
+                print(success_msg)
         
         return 0 if result.success else 1
     except Exception as e:
-        print(f"Error: {e}")
+        error_msg = format_message(f"Error: {e}", success=False, is_error=True)
+        print(error_msg)
         logger.exception("Command execution failed")
         return 1
 
