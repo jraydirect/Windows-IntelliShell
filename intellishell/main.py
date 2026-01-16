@@ -234,6 +234,23 @@ class IntentShell:
             self._show_help()
             return True
         
+        # Intercept history-related natural language queries
+        history_patterns = [
+            "what are my recent commands",
+            "show my recent commands",
+            "show my history",
+            "what did i do",
+            "what did i run",
+            "show command history",
+            "list my commands",
+            "recent commands",
+            "my history",
+            "command history"
+        ]
+        if any(pattern in user_input_lower for pattern in history_patterns):
+            self._show_history()
+            return True
+        
         if user_input.lower().strip() in ["stats", "session stats"]:
             self._show_stats()
             return True

@@ -314,6 +314,7 @@ class AIBridge:
             "",
             "Rules:",
             "- For 'what are available commands' / 'show commands' / 'list commands' → suggest user type 'help'",
+            "- For 'what are my recent commands' / 'show my history' / 'what did I do' → suggest user type 'history' (handled internally)",
             "- For 'what files in X' or 'show files in X' → use list_downloads/list_desktop/list_files",
             "- For 'what's in downloads' → list_downloads (not open_downloads)",
             "- For 'what processes' / 'show processes' / 'list processes' → use list_processes (READ-ONLY)",
