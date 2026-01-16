@@ -11,7 +11,8 @@ Natural language interface for Windows with LLM-powered intent routing, automati
 - **Self-Healing Execution** - Automatic error detection and repair with human-in-the-loop
 - **Semantic Memory** - Vector-based command history search (optional ChromaDB)
 - **Clipboard History** - Persistent clipboard manager with search and restore
-- **Tab Completion** - Smart autocomplete for commands and intents
+- **Smart Autocomplete** - Context-aware tab completion with frequency tracking and previews
+- **Tab Completion** - Intelligent autocomplete that learns from your usage patterns
 - **Process Management** - List, monitor, and manage Windows processes
 - **File Operations** - Navigate folders, list files, watch for changes
 - **Application Launcher** - Open any Windows application by name
@@ -205,6 +206,51 @@ intellishell> clipboard clear
 
 **Storage Location:** `~/.intellishell/clipboard_history.jsonl`
 
+## Smart Autocomplete with Context
+
+Intelligent tab completion that learns from your usage patterns and provides contextual suggestions:
+
+**Features:**
+- **Frequency-Based Ranking** - Most-used commands appear first
+- **Recency Scoring** - Recently used commands get priority
+- **Time-of-Day Awareness** - Suggests commands you typically use at this hour
+- **Command Sequence Learning** - Predicts next command based on previous one
+- **Fuzzy Matching** - Handles typos and partial matches
+- **Preview Generation** - Shows what each command does
+- **Usage Statistics** - Displays how often you've used each command
+
+**How It Works:**
+```bash
+# Press TAB for completions
+intellishell> op[TAB]
+# Shows: open desktop (used 15x) | Usually used around 9am
+#        open downloads (used 8x)
+#        open documents (used 3x)
+
+# Fuzzy matching handles typos
+intellishell> lst[TAB]
+# Shows: list downloads
+#        list desktop
+#        list files
+
+# Context-aware suggestions
+intellishell> open desktop
+intellishell> [TAB]
+# Shows: list files (often follows "open desktop")
+#        list desktop
+```
+
+**Learning:**
+- Automatically tracks command frequency
+- Records time-of-day patterns
+- Learns command sequences
+- Persists to `~/.intellishell/completion_stats.json`
+
+**Privacy:**
+- All data stored locally
+- No telemetry or cloud sync
+- Can be cleared anytime
+
 ## Available Commands
 
 ### FileSystem Provider
@@ -304,6 +350,7 @@ ishell --version
 ├── logs/
 │   └── shell.log         # Structured logs
 ├── clipboard_history.jsonl  # Clipboard history storage
+├── completion_stats.json    # Smart autocomplete learning data
 ├── history.jsonl         # Transaction log
 └── repairs.jsonl         # Self-healing repair log
 ```

@@ -422,6 +422,13 @@ class IntentShell:
                 intent_match.confidence
             )
             
+            # Record for smart autocomplete (if available)
+            if hasattr(self, '_completer') and self._completer and result.success:
+                try:
+                    self._completer.record_command(user_input)
+                except Exception as e:
+                    logger.debug(f"Failed to record command for autocomplete: {e}")
+            
             # Update context
             if result.data and "path" in result.data:
                 from pathlib import Path
@@ -579,12 +586,18 @@ class IntentShell:
                 
                 completer = IntelliShellCompleter(
                     provider_registry=self.registry,
-                    parser=self.parser
+                    parser=self.parser,
+                    enable_smart_features=True  # Enable smart autocomplete
                 )
+                self._completer = completer  # Store for command recording
                 history = InMemoryHistory()
+                logger.info("Smart autocomplete initialized")
             except ImportError:
                 use_tab_completion = False
                 logger.warning("prompt-toolkit not available, tab completion disabled")
+            except Exception as e:
+                use_tab_completion = False
+                logger.warning(f"Failed to initialize tab completion: {e}")
             
             while self.running:
                 try:
