@@ -3,6 +3,9 @@
 import json
 import logging
 import requests
+import subprocess
+import time
+import shutil
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field, ValidationError
 from dataclasses import dataclass
@@ -159,16 +162,33 @@ class OllamaClient:
         self.model = model
         self.timeout = timeout
         self._available = None
+        self._available_check_time = None
+        self._cache_duration_failed = 10  # Recheck every 10 seconds if unavailable
+        self._cache_duration_success = 60  # Cache for 60 seconds if available
     
     def is_available(self) -> bool:
         """
         Check if Ollama is running and available.
         
+        Uses time-based caching: rechecks after 10s if unavailable,
+        or after 60s if available to detect when Ollama starts/stops.
+        
         Returns:
             True if available, False otherwise
         """
-        if self._available is not None:
-            return self._available
+        # Check if cache is still valid
+        if self._available is not None and self._available_check_time is not None:
+            elapsed = time.time() - self._available_check_time
+            if self._available:
+                # If available, cache for longer
+                if elapsed < self._cache_duration_success:
+                    return self._available
+            else:
+                # If unavailable, recheck more frequently to detect when it starts
+                if elapsed < self._cache_duration_failed:
+                    return self._available
+        
+        # Cache expired or not set - perform check
         
         try:
             response = requests.get(
@@ -191,21 +211,99 @@ class OllamaClient:
                             f"Run: ollama pull {self.model}"
                         )
                         self._available = False
+                        self._available_check_time = time.time()
                         return False
                 except:
                     pass
                 
                 self._available = True
+                self._available_check_time = time.time()
                 logger.info(f"Ollama available at {self.host} with model {self.model}")
                 return True
             else:
                 logger.warning(f"Ollama responded with status {response.status_code}")
                 self._available = False
+                self._available_check_time = time.time()
                 return False
             
         except requests.exceptions.RequestException as e:
             logger.debug(f"Ollama not available: {e}")
             self._available = False
+            self._available_check_time = time.time()
+            return False
+    
+    def ensure_running(self, wait_timeout: int = 15) -> bool:
+        """
+        Ensure Ollama is running. If not running, launch it.
+        
+        First checks if an existing instance is available (doesn't create duplicates).
+        If not available, launches Ollama in the background.
+        
+        Args:
+            wait_timeout: Maximum seconds to wait for Ollama to start
+            
+        Returns:
+            True if Ollama is available (was already running or successfully started), False otherwise
+        """
+        # First check if it's already running
+        if self.is_available():
+            logger.debug("Ollama is already running, connecting to existing instance")
+            return True
+        
+        # Not running - check if Ollama is installed
+        ollama_path = shutil.which("ollama")
+        if not ollama_path:
+            logger.warning(
+                "Ollama not found in PATH. Please install Ollama from https://ollama.ai "
+                "or ensure it's in your PATH."
+            )
+            return False
+        
+        # Launch Ollama in the background
+        try:
+            logger.info(f"Ollama not running. Launching Ollama at {ollama_path}...")
+            
+            # Launch ollama serve as a background process
+            # On Windows, use CREATE_NO_WINDOW flag to hide console window
+            creation_flags = 0
+            if hasattr(subprocess, 'CREATE_NO_WINDOW'):
+                creation_flags = subprocess.CREATE_NO_WINDOW
+            
+            process = subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creation_flags
+            )
+            
+            # Wait a moment for Ollama to start
+            logger.debug("Waiting for Ollama to start...")
+            max_wait = wait_timeout
+            check_interval = 1
+            waited = 0
+            
+            while waited < max_wait:
+                time.sleep(check_interval)
+                waited += check_interval
+                
+                # Force a fresh check by clearing cache
+                self._available = None
+                self._available_check_time = None
+                
+                if self.is_available():
+                    logger.info(f"Ollama started successfully after {waited} seconds")
+                    return True
+                
+                # Check if process is still alive
+                if process.poll() is not None:
+                    logger.error(f"Ollama process exited with code {process.returncode}")
+                    return False
+            
+            logger.warning(f"Ollama did not become available after {max_wait} seconds")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Failed to launch Ollama: {e}")
             return False
     
     def generate(

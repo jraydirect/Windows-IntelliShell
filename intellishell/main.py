@@ -83,10 +83,16 @@ class IntentShell:
         if enable_ai:
             try:
                 self.ai_bridge = AIBridge(provider_registry=self.registry)
+                
+                # Check if Ollama is running, and launch it if not
                 if self.ai_bridge.is_available():
-                    logger.info("AI bridge initialized (Ollama available)")
+                    logger.info("AI bridge initialized (Ollama already running, connected to existing instance)")
                 else:
-                    logger.info("AI bridge initialized but Ollama not running")
+                    logger.info("AI bridge initialized but Ollama not running - attempting to launch...")
+                    if self.ai_bridge.ollama.ensure_running():
+                        logger.info("AI bridge initialized (Ollama launched successfully)")
+                    else:
+                        logger.warning("AI bridge initialized but could not start Ollama. AI features disabled.")
             except Exception as e:
                 logger.warning(f"Failed to initialize AI bridge: {e}")
         
