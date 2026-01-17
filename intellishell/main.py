@@ -359,7 +359,8 @@ class IntentShell:
                 "original_input": user_input,
                 "entities": intent_match.entities,
                 "clipboard": self.global_context.get_current(),
-                "session_id": self.session.session_id
+                "session_id": self.session.session_id,
+                "parameters": intent_match.parameters or {}  # LLM-extracted parameters
             }
             
             # Use self-healing executor if available

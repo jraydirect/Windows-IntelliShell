@@ -1,6 +1,7 @@
 """Application provider for launching Windows applications."""
 
 import os
+import re
 import subprocess
 from typing import Optional, Dict, Any
 from intellishell.providers.base import (
@@ -168,16 +169,42 @@ class AppProvider(BaseProvider):
                 message="No application name specified. Usage: open brave"
             )
         
-        input_text = context["original_input"].lower().strip()
+        # First, try to get app name from LLM parameters
+        app_name = None
+        if context.get("parameters") and "app_name" in context["parameters"]:
+            app_name = context["parameters"]["app_name"].lower().strip()
+        elif context.get("parameters") and "app" in context["parameters"]:
+            app_name = context["parameters"]["app"].lower().strip()
         
-        # Extract app name from "open [app]" pattern
-        # Remove common prefixes
-        prefixes = ["open", "launch", "start", "run"]
-        app_name = input_text
-        for prefix in prefixes:
-            if app_name.startswith(prefix):
-                app_name = app_name[len(prefix):].strip()
-                break
+        # If not in parameters, extract from original input
+        if not app_name:
+            input_text = context["original_input"].lower().strip()
+            
+            # Extract app name from natural language patterns
+            # Handle patterns like: "open brave", "launch brave", "can you open brave", "open the app brave", etc.
+            # Try to find app name after common verbs and phrases
+            patterns = [
+                r"(?:open|launch|start|run)\s+(?:the\s+)?(?:app\s+)?(\w+)",
+                r"(?:can\s+you\s+|please\s+)?(?:open|launch|start|run)\s+(?:the\s+)?(?:app\s+)?(\w+)",
+                r"(\w+)\s+(?:app|application)",
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, input_text)
+                if match:
+                    app_name = match.group(1).strip()
+                    break
+            
+            # Fallback: remove common prefixes from start
+            if not app_name:
+                prefixes = ["open", "launch", "start", "run", "can you open", "please open"]
+                app_name = input_text
+                for prefix in sorted(prefixes, key=len, reverse=True):  # Try longest first
+                    if app_name.startswith(prefix):
+                        app_name = app_name[len(prefix):].strip()
+                        # Remove "the" and "app" if they follow
+                        app_name = re.sub(r"^(the\s+)?(app\s+)?", "", app_name).strip()
+                        break
         
         if not app_name:
             return ExecutionResult(

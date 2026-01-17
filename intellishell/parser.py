@@ -30,10 +30,13 @@ class IntentMatch:
     original_input: str
     entities: List[Entity] = None
     source: str = "rule_based"  # 'rule_based' or 'llm'
+    parameters: Dict[str, Any] = None  # LLM-extracted parameters
     
     def __post_init__(self):
         if self.entities is None:
             self.entities = []
+        if self.parameters is None:
+            self.parameters = {}
 
 
 @dataclass
@@ -457,7 +460,8 @@ class SemanticParser:
                 trigger_pattern="<LLM generated>",
                 original_input=user_input,
                 entities=entities,
-                source="llm"
+                source="llm",
+                parameters=intent_req.parameters or {}
             )
             
             logger.info(
