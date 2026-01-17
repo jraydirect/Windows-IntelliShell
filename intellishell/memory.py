@@ -58,6 +58,7 @@ class VectorStore:
         self._indexing_queue = []
         self._indexing_lock = threading.Lock()
         self._background_thread: Optional[threading.Thread] = None
+        self._should_stop = False  # Flag to signal thread to stop
         
         # Try to initialize
         self._initialize()
@@ -120,6 +121,7 @@ class VectorStore:
         
         # Start background thread if not running
         if self._background_thread is None or not self._background_thread.is_alive():
+            self._should_stop = False  # Reset stop flag when starting new thread
             self._background_thread = threading.Thread(
                 target=self._process_queue,
                 daemon=True
@@ -128,7 +130,7 @@ class VectorStore:
     
     def _process_queue(self) -> None:
         """Process indexing queue in background thread."""
-        while True:
+        while not self._should_stop:
             with self._indexing_lock:
                 if not self._indexing_queue:
                     break

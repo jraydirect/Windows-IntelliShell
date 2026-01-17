@@ -215,6 +215,10 @@ class IntentShell:
             print("Exiting IntelliShell...")
             return False
         
+        # Update global clipboard context (skip if clipboard monitoring is active to avoid duplicate reads)
+        if not self.clipboard_history or not self.clipboard_history._monitoring:
+            self.global_context.update()
+        
         # Special commands (check before parsing)
         user_input_lower = user_input.lower().strip()
         if user_input_lower in ["help", "?"]:
@@ -567,6 +571,56 @@ class IntentShell:
         print("\nUse !N to replay a command")
         print()
     
+    def cleanup(self) -> None:
+        """Clean up all resources on shell exit."""
+        logger.info("Cleaning up IntelliShell resources...")
+        
+        # Stop clipboard monitoring
+        if self.clipboard_history:
+            try:
+                self.clipboard_history.stop_monitoring()
+                logger.debug("Clipboard monitoring stopped")
+            except Exception as e:
+                logger.warning(f"Failed to stop clipboard monitoring: {e}")
+        
+        # Stop file watchers
+        try:
+            watch_provider = self.registry.get_provider("watch")
+            if watch_provider and hasattr(watch_provider, '_active_watches'):
+                if watch_provider._active_watches:
+                    # Stop all active watches
+                    for watch_id, observer in list(watch_provider._active_watches.items()):
+                        try:
+                            observer.stop()
+                            observer.join(timeout=2)
+                            if observer.is_alive():
+                                logger.warning(f"Watch observer {watch_id} didn't stop within timeout")
+                        except Exception as e:
+                            logger.warning(f"Failed to stop watch {watch_id}: {e}")
+                    watch_provider._active_watches.clear()
+                    logger.debug("File watchers stopped")
+        except Exception as e:
+            logger.warning(f"Failed to stop file watchers: {e}")
+        
+        # Stop semantic memory indexing thread
+        if self.semantic_memory and hasattr(self.semantic_memory, 'vector_store'):
+            try:
+                vector_store = self.semantic_memory.vector_store
+                if hasattr(vector_store, '_background_thread') and vector_store._background_thread:
+                    # Set stop flag if available
+                    if hasattr(vector_store, '_should_stop'):
+                        vector_store._should_stop = True
+                    # Wait for thread to finish (with timeout)
+                    if vector_store._background_thread.is_alive():
+                        vector_store._background_thread.join(timeout=2)
+                        if vector_store._background_thread.is_alive():
+                            logger.warning("Memory indexing thread didn't stop within timeout")
+                logger.debug("Semantic memory indexing stopped")
+            except Exception as e:
+                logger.warning(f"Failed to stop memory indexing: {e}")
+        
+        logger.info("Cleanup completed")
+    
     async def run(self) -> None:
         """Start the async REPL loop."""
         # Enable royal blue terminal color
@@ -643,6 +697,8 @@ class IntentShell:
                 print()
                 self._show_stats()
         finally:
+            # Clean up all resources
+            self.cleanup()
             # Reset terminal color on exit
             reset_terminal_color()
 
